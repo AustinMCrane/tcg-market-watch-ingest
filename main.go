@@ -67,7 +67,7 @@ func Exec() error {
 		return nil
 	}
 
-	err = ingetPrices(dbConn, client)
+	err = ingetPrices(dbConn, client, time.Millisecond*100)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -75,9 +75,9 @@ func Exec() error {
 	return nil
 }
 
-func ingetPrices(dbConn *gorm.DB, client Tcgplayer) error {
+func ingetPrices(dbConn *gorm.DB, client Tcgplayer, sleepDuration time.Duration) error {
 	skus := []store.SKU{}
-	err := dbConn.Select("tcgplayer_id").Limit(101).Find(&skus).Error
+	err := dbConn.Select("tcgplayer_id").Find(&skus).Error
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -115,6 +115,7 @@ func ingetPrices(dbConn *gorm.DB, client Tcgplayer) error {
 		if err != nil {
 			return errors.Wrap(err)
 		}
+		time.Sleep(sleepDuration)
 	}
 	return nil
 }
@@ -348,11 +349,12 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 		rare, err := p.GetExtendedData("Rarity")
 		if err != nil {
 			log.Println("unable to find rarity for product: ", p.Name)
-			continue
-		}
-		for _, r := range rarities {
-			if r.Name == rare.Value {
-				rarityID = r.ID
+			rarityID = 1
+		} else {
+			for _, r := range rarities {
+				if r.Name == rare.Value {
+					rarityID = r.ID
+				}
 			}
 		}
 		product := store.Product{
@@ -400,7 +402,7 @@ func getGroups(client Tcgplayer) ([]*tcgplayer.Group, error) {
 
 func getProducts(client Tcgplayer, sleepDuration time.Duration) ([]*tcgplayer.Product, error) {
 	limit := 100
-	page := 352
+	page := 0
 	products := []*tcgplayer.Product{}
 	for {
 		params := tcgplayer.ProductParams{
