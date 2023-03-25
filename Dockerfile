@@ -18,6 +18,6 @@ COPY go.sum ./
 COPY . ./
 
 RUN go mod download
-RUN go build -o /tcg-market-watch-ingest
+RUN go build -o tcg-market-watch-ingest
 
-ENTRYPOINT [ "/tcg-market-watch-ingest" ]
+ENTRYPOINT [ "./tcg-market-watch-ingest" ]

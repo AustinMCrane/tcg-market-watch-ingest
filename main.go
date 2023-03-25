@@ -216,7 +216,7 @@ func syncSKUs(dbConn *gorm.DB, languages []*store.Language, conditions []*store.
 				}
 			}
 			for _, l := range languages {
-				if l.TCGPlayerID == s.ConditionID {
+				if l.TCGPlayerID == s.LanguageID {
 					languageID = l.ID
 				}
 			}
@@ -357,8 +357,14 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 				}
 			}
 		}
+
+		detailID, err := syncDetail(dbConn, &store.Detail{Name: p.CleanName})
+		if err != nil {
+			return nil, errors.Wrap(err)
+		}
+
 		product := store.Product{
-			Name:         p.Name,
+			DetailID:     detailID,
 			GroupID:      groupID,
 			RarityID:     rarityID,
 			ImageURL:     p.ImageURL,
@@ -374,6 +380,15 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 	}
 
 	return a, nil
+}
+
+func syncDetail(dbConn *gorm.DB, detail *store.Detail) (int, error) {
+	err := dbConn.Create(&detail).Error
+	if err != nil {
+		return 0, errors.Wrap(err)
+	}
+
+	return detail.ID, nil
 }
 
 func getGroups(client Tcgplayer) ([]*tcgplayer.Group, error) {
@@ -424,21 +439,6 @@ func getProducts(client Tcgplayer, sleepDuration time.Duration) ([]*tcgplayer.Pr
 		time.Sleep(sleepDuration)
 		log.Println("PAGE:", page)
 	}
-}
-
-func getSKUs(client Tcgplayer, products []*store.Product, sleepDuration time.Duration) ([]*tcgplayer.SKU, error) {
-	skus := []*tcgplayer.SKU{}
-	for _, p := range products {
-		s, err := client.ListProductSKUs(p.TCGPlayerID)
-		if err != nil {
-			return nil, errors.Wrap(err)
-		}
-
-		skus = append(skus, s...)
-		time.Sleep(sleepDuration)
-	}
-
-	return skus, nil
 }
 
 func getRarities(client Tcgplayer) ([]*tcgplayer.Rarity, error) {
