@@ -124,9 +124,37 @@ func ingetPrices(dbConn *gorm.DB, client Tcgplayer, sleepDuration time.Duration)
 }
 
 func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
+	// check if groups changed from tcgplayer
 	groups, err := getGroups(client)
 	if err != nil {
 		return errors.Wrap(err)
+	}
+
+	currentGroupIDs := []int{}
+	err = dbConn.Model(&store.Group{}).Select("tcgplayer_id").
+		Find(&currentGroupIDs).Error
+	if err != nil {
+		return errors.Wrap(err)
+	}
+
+	needUpdate := false
+	for _, g := range groups {
+		for _, id := range currentGroupIDs {
+			if id == g.ID {
+				needUpdate = true
+				break
+			}
+		}
+	}
+
+	if needUpdate == true {
+		err := dropData(dbConn)
+		if err != nil {
+			return errors.Wrap(err)
+		}
+	} else if len(currentGroupIDs) > 0 {
+		log.Println("data already exists")
+		return nil
 	}
 
 	createdGroups, err := syncGroups(dbConn, groups)
@@ -386,9 +414,19 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 }
 
 func syncDetail(dbConn *gorm.DB, detail *store.Detail) (int, error) {
-	err := dbConn.Create(&detail).Error
-	if err != nil {
-		return 0, errors.Wrap(err)
+	// check if detail already exists
+	var d store.Detail
+	err := dbConn.Where("name = ?", detail.Name).First(&d).Error
+	if err == nil {
+		return d.ID, nil
+	}
+
+	// if detail already exists, return the id
+	if err == gorm.ErrRecordNotFound {
+		err = dbConn.Create(&detail).Error
+		if err != nil {
+			return 0, errors.Wrap(err)
+		}
 	}
 
 	return detail.ID, nil
@@ -507,4 +545,14 @@ func getDBConnection(dbHost string, dbPort string, dbUser string, dbPassword str
 	}
 
 	return db, nil
+}
+
+func dropData(dbConn *gorm.DB) error {
+	// truncate all tables
+	err := dbConn.Exec("TRUNCATE TABLE products, details, groups, rarities, conditions, languages, printings CASCADE").Error
+	if err != nil {
+		return errors.Wrap(err)
+	}
+
+	return nil
 }

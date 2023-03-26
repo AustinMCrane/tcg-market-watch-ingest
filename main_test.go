@@ -57,6 +57,9 @@ func TestSyncDetail(t *testing.T) {
 
 	detail := store.Detail{Name: "test"}
 
+	mock.ExpectQuery("(.+)").
+		WithArgs("test").
+		WillReturnError(gorm.ErrRecordNotFound)
 	mock.ExpectBegin()
 	mock.ExpectQuery("INSERT INTO \"details\" (.+) RETURNING \"id\"").
 		WithArgs("test").
@@ -165,6 +168,13 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 		},
 	}
 
+	mock.ExpectQuery(`SELECT \"tcgplayer_id\" FROM \"groups\"`).WillReturnRows(sqlmock.NewRows([]string{"tcgplayer_id"}).
+		AddRow(1))
+
+	// truncate the tables
+	mock.ExpectExec(`TRUNCATE TABLE products, details, groups, rarities, conditions, languages, printings CASCADE`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
 	// Get Groups and Sync
 	client.EXPECT().GetGroups(tcgplayer.GroupParams{
 		CategoryID: tcgplayer.CategoryYugioh,
@@ -236,12 +246,9 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 		Offset:     0,
 	}).Return(products, nil)
 
-	// insert into details
-	mock.ExpectBegin()
-	mock.ExpectQuery(`INSERT INTO \"details\" (.+)`).
+	mock.ExpectQuery("(.+)").
 		WithArgs("test-name").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-	mock.ExpectCommit()
 
 	// insert the products
 	mock.ExpectBegin()
