@@ -1,0 +1,17 @@
+name: Docker
+run-name: ${{ github.actor }} is running docker stuff
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: build
+    env:
+      PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: build docker
+        run: docker build -t ghcr.io/austinmcrane/tcg-market-watch-ingest .
+      - name: login to github
+        run: echo $PERSONAL_ACCESS_TOKEN | docker login ghcr.io -u AustinMCrane --password-stdin
+      - name: push image
+        run: docker push ghcr.io/austinmcrane/tcg-market-watch-ingest:latest

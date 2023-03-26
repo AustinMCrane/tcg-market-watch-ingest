@@ -96,6 +96,9 @@ func ingetPrices(dbConn *gorm.DB, client Tcgplayer, sleepDuration time.Duration)
 			count = 0
 		}
 	}
+	if len(currentGroup) > 0 {
+		skuGroups = append(skuGroups, currentGroup)
+	}
 	for _, skuGroup := range skuGroups {
 		prices, err := client.GetSKUPrices(skuGroup)
 		if err != nil {

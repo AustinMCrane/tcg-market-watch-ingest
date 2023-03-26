@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/AustinMCrane/tcg-market-watch-api/pkg/store"
 	"github.com/AustinMCrane/tcgplayer"
@@ -257,4 +259,46 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 
 	err := updateImmutableDataTcgPlayer(dbConn, client)
 	require.NoError(t, err)
+}
+
+func TestIngestPrice(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	client := NewMockTcgplayer(ctrl)
+	dbConn, mock := GetMockDB(t)
+
+	skuID := 1
+	price := float32(1.0)
+	shipping := float32(0.1)
+
+	mock.ExpectQuery("SELECT \"tcgplayer_id\" FROM \"skus\"").
+		WillReturnRows(sqlmock.NewRows([]string{"tcgplayer_id"}).AddRow(1))
+	client.EXPECT().GetSKUPrices([]int{skuID}).
+		Return([]*tcgplayer.SKUMarketPrice{
+			{SKUID: skuID, LowPrice: 1.0, LowestShipping: 0.1},
+		}, nil)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("INSERT INTO \"sku_prices\" (.+)").
+		WithArgs(skuID, price, shipping).WillReturnRows(sqlmock.NewRows([]string{"ingested_at", "id"}).AddRow(time.Now(), 1))
+	mock.ExpectCommit()
+
+	err := ingetPrices(dbConn, client, 0)
+	require.NoError(t, err)
+
+}
+
+func TestIngestPrice_ClientError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	client := NewMockTcgplayer(ctrl)
+	dbConn, mock := GetMockDB(t)
+
+	skuID := 1
+
+	mock.ExpectQuery("SELECT \"tcgplayer_id\" FROM \"skus\"").
+		WillReturnRows(sqlmock.NewRows([]string{"tcgplayer_id"}).AddRow(skuID))
+	client.EXPECT().GetSKUPrices([]int{skuID}).
+		Return(nil, errors.New("unable to get prices"))
+
+	err := ingetPrices(dbConn, client, 0)
+	require.Error(t, err)
 }

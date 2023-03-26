@@ -1,0 +1,15 @@
+name: Build
+run-name: ${{ github.actor }} is running go ci🚀
+on: [push]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    environment: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: "1.19"
+          check-latest: true
+      - run: make test
+      - run: make build
