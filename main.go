@@ -87,6 +87,7 @@ func ingetPrices(dbConn *gorm.DB, client Tcgplayer, sleepDuration time.Duration)
 	if err != nil {
 		return errors.Wrap(err)
 	}
+
 	skuGroups := [][]int{}
 	currentGroup := []int{}
 	count := 0
@@ -102,14 +103,17 @@ func ingetPrices(dbConn *gorm.DB, client Tcgplayer, sleepDuration time.Duration)
 			count = 0
 		}
 	}
+
 	if len(currentGroup) > 0 {
 		skuGroups = append(skuGroups, currentGroup)
 	}
+
 	for _, skuGroup := range skuGroups {
 		prices, err := client.GetSKUPrices(skuGroup)
 		if err != nil {
 			return errors.Wrap(err)
 		}
+
 		// insert tcgplayer prices
 		pricesToCreate := []store.SKUPrice{}
 		for _, p := range prices {
@@ -252,13 +256,17 @@ func syncSKUs(dbConn *gorm.DB, languages []*store.Language, conditions []*store.
 					conditionID = c.ID
 				}
 			}
+			isEnglish := false
 			for _, l := range languages {
 				if l.TCGPlayerID == s.LanguageID {
 					languageID = l.ID
+
+					// english is always 1
+					isEnglish = l.TCGPlayerID == 1
 				}
 			}
 			// NOTE: only care about english
-			if languageID != 1 {
+			if !isEnglish {
 				break
 			}
 
@@ -399,6 +407,12 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 	if err != nil {
 		return nil, errors.Wrap(err)
 	}
+	commonRarity := store.Rarity{}
+	err = dbConn.Where("name = ?", rarityNameCommon).
+		First(&commonRarity).Error
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
 
 	for _, p := range products {
 		groupID := 0
@@ -419,13 +433,7 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 
 			// NOTE: there seems to be cards that have a rarity of "Common" instead of "Common / Short Print"
 			if rare.Value == "Common" {
-				r := store.Rarity{}
-				err := dbConn.Where("name = ?", rarityNameCommon).
-					First(&r).Error
-				if err != nil {
-					return nil, errors.Wrap(err)
-				}
-				rarityID = r.ID
+				rarityID = commonRarity.ID
 			} else {
 				for _, r := range rarities {
 					if r.Name == rare.Value {
