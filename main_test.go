@@ -52,14 +52,10 @@ func TestGetGroups(t *testing.T) {
 	require.Len(t, groups, 1)
 }
 
-func TestSyncDetail(t *testing.T) {
+func TestSyncDetails(t *testing.T) {
 	dbConn, mock := GetMockDB(t)
 
-	detail := store.Detail{Name: "test"}
-
-	mock.ExpectQuery("(.+)").
-		WithArgs("test").
-		WillReturnError(gorm.ErrRecordNotFound)
+	detail := []*store.Detail{{Name: "test"}}
 	mock.ExpectBegin()
 	mock.ExpectQuery("INSERT INTO \"details\" (.+) RETURNING \"id\"").
 		WithArgs("test").
@@ -67,9 +63,9 @@ func TestSyncDetail(t *testing.T) {
 			AddRow(1))
 	mock.ExpectCommit()
 
-	id, err := syncDetail(dbConn, &detail)
+	created, err := syncDetails(dbConn, detail)
 	require.NoError(t, err)
-	require.NotEqual(t, id, 0)
+	require.Len(t, created, len(detail))
 }
 
 func TestSyncGroups(t *testing.T) {
@@ -246,8 +242,18 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 		Offset:     0,
 	}).Return(products, nil)
 
+	mock.ExpectBegin()
 	mock.ExpectQuery("(.+)").
 		WithArgs("test-name").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectCommit()
+
+	mock.ExpectQuery(`SELECT (.+) FROM \"rarities\"`).
+		WithArgs(defaultRarityName).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+
+	mock.ExpectQuery(`SELECT (.+) FROM \"rarities\"`).
+		WithArgs(rarityNameCommon).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 
 	// insert the products

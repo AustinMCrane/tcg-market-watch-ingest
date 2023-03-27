@@ -26,6 +26,12 @@ var (
 
 	publicKey  = flag.String("public-key", "", "public tcgplayer api key")
 	privateKey = flag.String("private-key", "", "private tcgplayer api key")
+
+	defaultRarityName = "Unconfirmed"
+
+	// rarityNameCommon is the name of the common rarity it is not just called
+	// Common
+	rarityNameCommon = "Common / Short Print"
 )
 
 func main() {
@@ -368,30 +374,83 @@ func syncRarities(dbConn *gorm.DB, rarities []*tcgplayer.Rarity) ([]*store.Rarit
 func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rarity,
 	products []*tcgplayer.Product) ([]*store.Product, error) {
 	a := []*store.Product{}
+	details := []*store.Detail{}
+	for _, p := range products {
+		// check if name exists in detailNames
+		found := false
+		for _, n := range details {
+			if n.Name == p.CleanName {
+				found = true
+				continue
+			}
+		}
+		if !found {
+			details = append(details, &store.Detail{Name: p.CleanName})
+		}
+	}
+
+	createdDetails, err := syncDetails(dbConn, details)
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+
+	var defaultRarity store.Rarity
+	err = dbConn.Where("name = ?", "Unconfirmed").First(&defaultRarity).Error
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+
 	for _, p := range products {
 		groupID := 0
-		rarityID := 1
+		rarityID := 0
 		for _, g := range groups {
 			if g.TCGPlayerID == p.GroupID {
 				groupID = g.ID
 				break
 			}
 		}
+
 		rare, err := p.GetExtendedData("Rarity")
 		if err != nil {
 			log.Println("unable to find rarity for product: ", p.Name)
-			rarityID = 1
+			rarityID = defaultRarity.ID
 		} else {
-			for _, r := range rarities {
-				if r.Name == rare.Value {
-					rarityID = r.ID
+			found := false
+
+			// NOTE: there seems to be cards that have a rarity of "Common" instead of "Common / Short Print"
+			if rare.Value == "Common" {
+				r := store.Rarity{}
+				err := dbConn.Where("name = ?", rarityNameCommon).
+					First(&r).Error
+				if err != nil {
+					return nil, errors.Wrap(err)
+				}
+				rarityID = r.ID
+			} else {
+				for _, r := range rarities {
+					if r.Name == rare.Value {
+						rarityID = r.ID
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					rarityID = defaultRarity.ID
 				}
 			}
 		}
 
-		detailID, err := syncDetail(dbConn, &store.Detail{Name: p.CleanName})
-		if err != nil {
-			return nil, errors.Wrap(err)
+		detailID := 0
+		for _, d := range createdDetails {
+			if d.Name == p.CleanName {
+				detailID = d.ID
+				break
+			}
+		}
+
+		if rarityID == 0 {
+			rarityID = defaultRarity.ID
 		}
 
 		product := store.Product{
@@ -405,7 +464,7 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 		a = append(a, &product)
 	}
 
-	err := dbConn.CreateInBatches(&a, 1000).Error
+	err = dbConn.CreateInBatches(&a, 1000).Error
 	if err != nil {
 		return nil, errors.Wrap(err)
 	}
@@ -413,23 +472,29 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 	return a, nil
 }
 
-func syncDetail(dbConn *gorm.DB, detail *store.Detail) (int, error) {
-	// check if detail already exists
-	var d store.Detail
-	err := dbConn.Where("name = ?", detail.Name).First(&d).Error
-	if err == nil {
-		return d.ID, nil
-	}
+func syncDetails(dbConn *gorm.DB, details []*store.Detail) ([]*store.Detail, error) {
+	// create each detail if it doesn't exist
+	createdDetails := []*store.Detail{}
+	for _, d := range details {
+		found := false
+		for _, c := range createdDetails {
+			if c.Name == d.Name {
+				found = true
+				continue
+			}
+		}
 
-	// if detail already exists, return the id
-	if err == gorm.ErrRecordNotFound {
-		err = dbConn.Create(&detail).Error
-		if err != nil {
-			return 0, errors.Wrap(err)
+		if !found {
+			createdDetails = append(createdDetails, d)
 		}
 	}
 
-	return detail.ID, nil
+	err := dbConn.CreateInBatches(&createdDetails, 1000).Error
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+
+	return createdDetails, nil
 }
 
 func getGroups(client Tcgplayer) ([]*tcgplayer.Group, error) {
@@ -555,4 +620,14 @@ func dropData(dbConn *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func getDetailID(dbConn *gorm.DB, name string) (int, error) {
+	var detail store.Detail
+	err := dbConn.Where("name = ?", name).First(&detail).Error
+	if err != nil {
+		return 0, errors.Wrap(err)
+	}
+
+	return detail.ID, nil
 }
