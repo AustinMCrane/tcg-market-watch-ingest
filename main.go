@@ -42,6 +42,8 @@ func main() {
 	}
 }
 
+// Tcgplayer is the interface for the tcgplayer client
+//
 //go:generate mockgen -destination mock_main_test.go -package main -source main.go Tcgplayer
 type Tcgplayer interface {
 	GetGroups(tcgplayer.GroupParams) ([]*tcgplayer.Group, error)
@@ -54,6 +56,7 @@ type Tcgplayer interface {
 	GetSKUPrices(skus []int) ([]*tcgplayer.SKUMarketPrice, error)
 }
 
+// Exec is the main entry point for the program
 func Exec() error {
 	dbConn, err := getDBConnection(*dbHost, *dbPort, *dbUser, *dbPassword, *dbName)
 	if err != nil {
@@ -71,6 +74,12 @@ func Exec() error {
 			return errors.Wrap(err)
 		}
 		return nil
+	}
+
+	// 2 months
+	err = trimOldPriceData(dbConn, time.Duration(time.Hour*24*60))
+	if err != nil {
+		return errors.Wrap(err)
 	}
 
 	err = ingetPrices(dbConn, client, time.Millisecond*100)
@@ -638,4 +647,14 @@ func getDetailID(dbConn *gorm.DB, name string) (int, error) {
 	}
 
 	return detail.ID, nil
+}
+
+func trimOldPriceData(dbConn *gorm.DB, since time.Duration) error {
+	err := dbConn.Delete(&store.SKUPrice{}, "ingested_at < ?",
+		time.Now().Add(-since)).Error
+	if err != nil {
+		return errors.Wrap(err)
+	}
+
+	return nil
 }
