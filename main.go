@@ -21,11 +21,12 @@ var (
 	dbPort      = flag.String("db-port", "5432", "database port")
 	dbUser      = flag.String("db-user", "postgres", "database user")
 	dbPassword  = flag.String("db-password", "password", "database password")
-	dbName      = flag.String("db-name", "tcg-market-watch-api", "database name")
+	dbName      = flag.String("db-name", "postgres", "database name")
 	ingestPrice = flag.Bool("ingest-price", false, "should just ingest pricing")
 
 	publicKey  = flag.String("public-key", "", "public tcgplayer api key")
 	privateKey = flag.String("private-key", "", "private tcgplayer api key")
+	devMode    = flag.Bool("dev", true, "dev flag, only ingest a few products")
 
 	defaultRarityName = "Unconfirmed"
 
@@ -46,6 +47,7 @@ func main() {
 //
 //go:generate mockgen -destination mock_main_test.go -package main -source main.go Tcgplayer
 type Tcgplayer interface {
+	GetCategories() ([]*tcgplayer.Category, error)
 	GetGroups(tcgplayer.GroupParams) ([]*tcgplayer.Group, error)
 	GetRarities(params *tcgplayer.RarityParams) ([]*tcgplayer.Rarity, error)
 	GetPrinting(params tcgplayer.PrintingParams) ([]*tcgplayer.Printing, error)
@@ -69,7 +71,17 @@ func Exec() error {
 	}
 
 	if *ingestPrice == false {
-		err = updateImmutableDataTcgPlayer(dbConn, client)
+		categories, err := getCategories(client)
+		if err != nil {
+			return errors.Wrap(err)
+		}
+
+		_, err = syncCategories(dbConn, categories)
+		if err != nil {
+			return errors.Wrap(err)
+		}
+
+		err = updateImmutableDataTcgPlayer(dbConn, client, tcgplayer.CategoryYugioh)
 		if err != nil {
 			return errors.Wrap(err)
 		}
@@ -142,9 +154,9 @@ func ingetPrices(dbConn *gorm.DB, client Tcgplayer, sleepDuration time.Duration)
 	return nil
 }
 
-func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
+func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer, categoryID int) error {
 	// check if groups changed from tcgplayer
-	groups, err := getGroups(client)
+	groups, err := getGroups(client, categoryID)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -181,7 +193,7 @@ func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
 		return errors.Wrap(err)
 	}
 
-	rarities, err := getRarities(client)
+	rarities, err := getRarities(client, categoryID)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -191,7 +203,7 @@ func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
 		return errors.Wrap(err)
 	}
 
-	printings, err := getPrintings(client)
+	printings, err := getPrintings(client, categoryID)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -201,7 +213,7 @@ func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
 		return errors.Wrap(err)
 	}
 
-	conditions, err := getConditions(client)
+	conditions, err := getConditions(client, categoryID)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -211,7 +223,7 @@ func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
 		return errors.Wrap(err)
 	}
 
-	languages, err := getLanguages(client)
+	languages, err := getLanguages(client, categoryID)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -221,7 +233,7 @@ func updateImmutableDataTcgPlayer(dbConn *gorm.DB, client Tcgplayer) error {
 		return errors.Wrap(err)
 	}
 
-	products, err := getProducts(client, time.Millisecond*200)
+	products, err := getProducts(client, categoryID, time.Millisecond*200)
 	if err != nil {
 		return errors.Wrap(err)
 	}
@@ -304,6 +316,7 @@ func syncGroups(dbConn *gorm.DB, groups []*tcgplayer.Group) ([]*store.Group, err
 		group := store.Group{
 			Name:        g.Name,
 			TCGPlayerID: g.ID,
+			CategoryID:  g.CategoryID,
 		}
 		p = append(p, &group)
 	}
@@ -360,6 +373,35 @@ func syncPrintings(dbConn *gorm.DB, printings []*tcgplayer.Printing) ([]*store.P
 			TCGPlayerID: g.ID,
 		}
 		p = append(p, &printing)
+	}
+
+	err := dbConn.Create(&p).Error
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+
+	return p, nil
+}
+
+func syncCategories(dbConn *gorm.DB, categories []*tcgplayer.Category) ([]*store.Category, error) {
+	p := []*store.Category{}
+	for _, c := range categories {
+		err := dbConn.First(&store.Category{ID: c.ID}).Error
+		if err == nil {
+			continue
+		}
+
+		cat := store.Category{
+			ID:          c.ID,
+			Name:        c.Name,
+			TCGPlayerID: c.ID,
+		}
+		p = append(p, &cat)
+
+	}
+
+	if len(p) == 0 {
+		return nil, nil
 	}
 
 	err := dbConn.Create(&p).Error
@@ -471,6 +513,7 @@ func syncProducts(dbConn *gorm.DB, groups []*store.Group, rarities []*store.Rari
 		}
 
 		product := store.Product{
+			CategoryID:   p.CategoryID,
 			DetailID:     detailID,
 			GroupID:      groupID,
 			RarityID:     rarityID,
@@ -514,13 +557,13 @@ func syncDetails(dbConn *gorm.DB, details []*store.Detail) ([]*store.Detail, err
 	return createdDetails, nil
 }
 
-func getGroups(client Tcgplayer) ([]*tcgplayer.Group, error) {
+func getGroups(client Tcgplayer, categoryID int) ([]*tcgplayer.Group, error) {
 	limit := 100
 	page := 0
 	groups := []*tcgplayer.Group{}
 	for {
 		params := tcgplayer.GroupParams{
-			CategoryID: tcgplayer.CategoryYugioh,
+			CategoryID: categoryID,
 			Limit:      limit,
 			Offset:     limit * page,
 		}
@@ -538,13 +581,14 @@ func getGroups(client Tcgplayer) ([]*tcgplayer.Group, error) {
 	}
 }
 
-func getProducts(client Tcgplayer, sleepDuration time.Duration) ([]*tcgplayer.Product, error) {
+func getProducts(client Tcgplayer, categoryID int,
+	sleepDuration time.Duration) ([]*tcgplayer.Product, error) {
 	limit := 100
 	page := 0
 	products := []*tcgplayer.Product{}
 	for {
 		params := tcgplayer.ProductParams{
-			CategoryID: tcgplayer.CategoryYugioh,
+			CategoryID: categoryID,
 			Limit:      limit,
 			Offset:     limit * page,
 		}
@@ -561,12 +605,24 @@ func getProducts(client Tcgplayer, sleepDuration time.Duration) ([]*tcgplayer.Pr
 		page++
 		time.Sleep(sleepDuration)
 		log.Println("PAGE:", page)
+		if *devMode && page > 20 {
+			return products, nil
+		}
 	}
 }
 
-func getRarities(client Tcgplayer) ([]*tcgplayer.Rarity, error) {
+func getCategories(client Tcgplayer) ([]*tcgplayer.Category, error) {
+	categories, err := client.GetCategories()
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+
+	return categories, nil
+}
+
+func getRarities(client Tcgplayer, categoryID int) ([]*tcgplayer.Rarity, error) {
 	params := &tcgplayer.RarityParams{
-		CategoryID: tcgplayer.CategoryYugioh,
+		CategoryID: categoryID,
 	}
 
 	rarities, err := client.GetRarities(params)
@@ -577,9 +633,9 @@ func getRarities(client Tcgplayer) ([]*tcgplayer.Rarity, error) {
 	return rarities, nil
 }
 
-func getConditions(client Tcgplayer) ([]*tcgplayer.Condition, error) {
+func getConditions(client Tcgplayer, categoryID int) ([]*tcgplayer.Condition, error) {
 	params := &tcgplayer.ConditionParams{
-		CategoryID: tcgplayer.CategoryYugioh,
+		CategoryID: categoryID,
 	}
 
 	conditions, err := client.GetConditions(params)
@@ -590,9 +646,9 @@ func getConditions(client Tcgplayer) ([]*tcgplayer.Condition, error) {
 	return conditions, nil
 }
 
-func getLanguages(client Tcgplayer) ([]*tcgplayer.Language, error) {
+func getLanguages(client Tcgplayer, categoryID int) ([]*tcgplayer.Language, error) {
 	params := &tcgplayer.LanguageParams{
-		CategoryID: tcgplayer.CategoryYugioh,
+		CategoryID: categoryID,
 	}
 
 	languages, err := client.GetLanguages(params)
@@ -603,9 +659,9 @@ func getLanguages(client Tcgplayer) ([]*tcgplayer.Language, error) {
 	return languages, nil
 }
 
-func getPrintings(client Tcgplayer) ([]*tcgplayer.Printing, error) {
+func getPrintings(client Tcgplayer, categoryID int) ([]*tcgplayer.Printing, error) {
 	params := tcgplayer.PrintingParams{
-		CategoryID: tcgplayer.CategoryYugioh,
+		CategoryID: categoryID,
 	}
 
 	printings, err := client.GetPrinting(params)

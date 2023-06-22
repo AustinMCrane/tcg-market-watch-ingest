@@ -10,8 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: build docker
-        run: docker build -t ghcr.io/austinmcrane/tcg-market-watch-ingest .
+        run: docker build -t ghcr.io/austinmcrane/tcgplayer-ingest .
       - name: login to github
         run: echo $PERSONAL_ACCESS_TOKEN | docker login ghcr.io -u AustinMCrane --password-stdin
       - name: push image
-        run: docker push ghcr.io/austinmcrane/tcg-market-watch-ingest:latest
+        run: docker push ghcr.io/austinmcrane/tcgplayer-ingest:latest

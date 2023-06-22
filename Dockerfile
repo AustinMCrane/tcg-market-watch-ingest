@@ -1,6 +1,6 @@
 FROM golang:1.20-alpine
 
-WORKDIR /tcg-market-watch-ingest
+WORKDIR /tcgplayer-ingest
 RUN apk add --update --no-cache ca-certificates git bash openssh-client build-base
 
 ARG SSH_PRIVATE_KEY
@@ -18,6 +18,6 @@ COPY go.sum ./
 COPY . ./
 
 RUN go mod download
-RUN go build -o tcg-market-watch-ingest
+RUN go build -o tcgplayer-ingest
 
-ENTRYPOINT [ "./tcg-market-watch-ingest" ]
+ENTRYPOINT [ "./tcgplayer-ingest" ]

@@ -434,6 +434,12 @@ github.com/AustinMCrane/tcgplayer v0.0.18 h1:yTz3KYd4NHck/SnyhmnYPIjFrE62RwsEPkr
 github.com/AustinMCrane/tcgplayer v0.0.18/go.mod h1:ItWmPiy6zZvB6SizwvBd+xqu7S3Nx3Tu+f7/r/a8WRs=
 github.com/AustinMCrane/tcgplayer v0.0.19 h1:Lwk3CG03Jteh9DUU1Dm0K97Nl/ojQBX04AcXtDZyNxk=
 github.com/AustinMCrane/tcgplayer v0.0.19/go.mod h1:ItWmPiy6zZvB6SizwvBd+xqu7S3Nx3Tu+f7/r/a8WRs=
+github.com/AustinMCrane/tcgplayer v0.1.0 h1:mXhXixyQdZ4gl/FnBvVBLKtP0pHF/LmdrxrBpm/aTYU=
+github.com/AustinMCrane/tcgplayer v0.1.0/go.mod h1:ItWmPiy6zZvB6SizwvBd+xqu7S3Nx3Tu+f7/r/a8WRs=
+github.com/AustinMCrane/tcgplayer v0.1.1 h1:5+9ylhGv7AU8q4MTsbowsW8KVlsa53Bq4je7bJdo6fU=
+github.com/AustinMCrane/tcgplayer v0.1.1/go.mod h1:ItWmPiy6zZvB6SizwvBd+xqu7S3Nx3Tu+f7/r/a8WRs=
+github.com/AustinMCrane/tcgplayer v0.1.2 h1:7tz3rlZs1shL1g8jIQLM70JOK3bjcHXbzGd5ZB6KQIw=
+github.com/AustinMCrane/tcgplayer v0.1.2/go.mod h1:ItWmPiy6zZvB6SizwvBd+xqu7S3Nx3Tu+f7/r/a8WRs=
 github.com/Azure/azure-amqp-common-go/v3 v3.2.3/go.mod h1:7rPmbSfszeovxGfc5fSAXE4ehlXQZHpMja2OtxC2Tas=
 github.com/Azure/azure-sdk-for-go v16.2.1+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go v63.0.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=

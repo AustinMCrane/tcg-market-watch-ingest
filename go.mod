@@ -1,11 +1,11 @@
-module github.com/AustinMCrane/tcg-market-watch-ingest
+module github.com/AustinMCrane/tcgplayer-ingest
 
 go 1.20
 
 require (
 	github.com/AustinMCrane/errorutil v0.0.0-20211110221350-3cbf8c4dade3
 	github.com/AustinMCrane/tcg-market-watch-api v0.0.0-20230325170527-a4fceba09e14
-	github.com/AustinMCrane/tcgplayer v0.0.19
+	github.com/AustinMCrane/tcgplayer v0.1.2
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/golang/mock v1.6.0
 	github.com/lib/pq v1.10.7
@@ -47,3 +47,5 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/AustinMCrane/tcg-market-watch-api => ../tcg-market-watch-api

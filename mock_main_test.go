@@ -34,6 +34,21 @@ func (m *MockTcgplayer) EXPECT() *MockTcgplayerMockRecorder {
 	return m.recorder
 }
 
+// GetCategories mocks base method.
+func (m *MockTcgplayer) GetCategories() ([]*tcgplayer.Category, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCategories")
+	ret0, _ := ret[0].([]*tcgplayer.Category)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCategories indicates an expected call of GetCategories.
+func (mr *MockTcgplayerMockRecorder) GetCategories() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCategories", reflect.TypeOf((*MockTcgplayer)(nil).GetCategories))
+}
+
 // GetConditions mocks base method.
 func (m *MockTcgplayer) GetConditions(params *tcgplayer.ConditionParams) ([]*tcgplayer.Condition, error) {
 	m.ctrl.T.Helper()

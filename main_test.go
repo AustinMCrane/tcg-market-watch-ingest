@@ -47,7 +47,7 @@ func TestGetGroups(t *testing.T) {
 		Offset:     0,
 	}).Return([]*tcgplayer.Group{{Name: "test-group"}}, nil)
 
-	groups, err := getGroups(client)
+	groups, err := getGroups(client, tcgplayer.CategoryYugioh)
 	require.NoError(t, err)
 	require.Len(t, groups, 1)
 }
@@ -98,12 +98,14 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 
 	tcgGroups := []*tcgplayer.Group{
 		{
-			ID:   1,
-			Name: "test-1",
+			ID:         1,
+			CategoryID: tcgplayer.CategoryYugioh,
+			Name:       "test-1",
 		},
 		{
-			ID:   2,
-			Name: "test-2",
+			ID:         2,
+			CategoryID: tcgplayer.CategoryYugioh,
+			Name:       "test-2",
 		},
 	}
 
@@ -259,7 +261,7 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 	// insert the products
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO \"products\" (.+)`).
-		WithArgs(1, 1, 1, "test-image-url", 1, "test-url").
+		WithArgs(tcgplayer.CategoryYugioh, 1, 1, 1, "test-image-url", 1, "test-url").
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectCommit()
 
@@ -270,7 +272,7 @@ func TestUpdateImmutableDataTcgPlayer(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectCommit()
 
-	err := updateImmutableDataTcgPlayer(dbConn, client)
+	err := updateImmutableDataTcgPlayer(dbConn, client, tcgplayer.CategoryYugioh)
 	require.NoError(t, err)
 }
 
